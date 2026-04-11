@@ -64,6 +64,7 @@ async function fetchArticles() {
         
         const articles = [];
 
+        // Téléchargement parallèle robuste
         const fetchPromises = jsonFiles.map(async fileName => {
             try {
                 const articleResponse = await fetch(baseUrl + fileName);
@@ -96,22 +97,25 @@ async function fetchArticles() {
                     try {
                         articleData = JSON.parse(jsonString);
                     } catch (e) {
-                        // Tolérance d'erreur
+                        // Héritage de secours si Make.com envoie du TXT brut au lieu du JSON
+                        const titleMatch = textData.match(/"([^"]+)"/);
+                        const urlMatch = textData.match(/https?:\/\/[^\s]+/);
                         articleData = {
-                            titre: "Actualité",
-                            resume: textData.substring(0, 200) + "...",
-                            categorie: "Auto"
+                            titre: titleMatch ? titleMatch[1] : "Actualité Tech",
+                            resume: textData, // Texte COMPLET sans tronquer
+                            categorie: "Technologie", 
+                            source_url: urlMatch ? urlMatch[0] : "#"
                         };
                     }
 
                     // Mapping des propriétés (support du français et anglais)
                     const mappedTitle = articleData.titre || articleData.title || "Nouvel Article";
                     let rawSummary = articleData.resume || articleData.summary || "Résumé indisponible.";
-                    const mappedSummary = stripMarkdown(rawSummary); // Nettoyage Markdown
+                    const mappedSummary = stripMarkdown(rawSummary); // Nettoyage Markdown complet
                     
-                    const mappedCategory = articleData.categorie || articleData.category || "Général";
+                    const mappedCategory = articleData.categorie || articleData.category || "Technologie";
                     const mappedSourceUrl = articleData.source_url || articleData.lien_source || "#";
-                    const mappedSourceName = articleData.source_name || articleData.nom_source || "Lire la source";
+                    const mappedSourceName = articleData.source_name || articleData.nom_source || mappedTitle;
                     
                     // Assignation de l'image via la catégorie
                     let dynamicImageUrl = 'assets/ai_data_processing.png';
@@ -131,13 +135,22 @@ async function fetchArticles() {
                         date: articleData.date
                     };
 
-                    // Détection du timestamp dans le nom du fichier poussé par Make.com
-                    const tsMatch = fileName.match(/(\d{10,13})\.json/);
-                    if (tsMatch && !finalArticle.date) {
-                        const ts = parseInt(tsMatch[1], 10);
-                        const tsDate = ts > 9999999999 ? new Date(ts) : new Date(ts * 1000);
+                    // Rétrocompatibilité timestamp et dates texte Make.com (article-2026-04-12-00-46.json)
+                    const tsMatch = fileName.match(/-(1\d{9,12})\.json/);
+                    const dateMatch = fileName.match(/article-(\d{4})-(\d{2})-(\d{2})/);
+                    
+                    if (!finalArticle.date) {
                         const moisNoms = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"];
-                        finalArticle.date = `${tsDate.getDate()} ${moisNoms[tsDate.getMonth()]} ${tsDate.getFullYear()}`;
+                        if (dateMatch) {
+                            const annee = parseInt(dateMatch[1], 10);
+                            const moisIndex = parseInt(dateMatch[2], 10) - 1;
+                            const jour = parseInt(dateMatch[3], 10);
+                            finalArticle.date = `${jour} ${moisNoms[moisIndex]} ${annee}`;
+                        } else if (tsMatch) {
+                            const ts = parseInt(tsMatch[1], 10);
+                            const tsDate = ts > 9999999999 ? new Date(ts) : new Date(ts * 1000);
+                            finalArticle.date = `${tsDate.getDate()} ${moisNoms[tsDate.getMonth()]} ${tsDate.getFullYear()}`;
+                        }
                     }
 
                     articles.push(finalArticle);
@@ -201,25 +214,52 @@ async function fetchArticles() {
                 return;
             }
 
-            articlesToRender.forEach(article => {
+            articlesToRender.forEach((article, index) => {
                 const imageUrl = article.image || 'assets/ai_data_processing.png';
+                const articleId = `article-resume-${index}`;
+                const btnId = `btn-more-${index}`;
+
                 const articleHtml = `
                     <article class="news-card large">
                         <div class="card-image-wrapper">
-                            <img src="${imageUrl}" alt="Illustration de l'article" class="card-image">
-                            <span class="category-badge">${article.category || 'Non classé'}</span>
+                            <img src="${imageUrl}" alt="Illustration" class="card-image">
+                            <span class="category-badge">${article.category || 'Général'}</span>
                         </div>
                         <div class="card-content">
                             <span class="date">${article.date || ''}</span>
                             <h3 class="card-title">${article.title}</h3>
-                            <p class="card-excerpt">${article.summary}</p>
+                            <div class="card-excerpt-container" style="flex-grow: 1;">
+                                <p class="card-excerpt" id="${articleId}" style="max-height: 100px; overflow: hidden; transition: max-height 0.4s ease; margin-bottom: 0;">${article.summary}</p>
+                                <button id="${btnId}" style="background: none; border: none; color: var(--accent); cursor: pointer; font-weight: bold; margin-bottom: 1.5rem; padding-top: 5px; text-decoration: underline;">Lire la suite ↓</button>
+                            </div>
                             <a href="${article.source_url}" target="_blank" rel="noopener noreferrer" class="read-more">
-                                Source: ${article.source_name || 'Lien externe'} &rarr;
+                                Source : ${article.source_name} &rarr;
                             </a>
                         </div>
                     </article>
                 `;
                 container.innerHTML += articleHtml;
+            });
+
+            // Attacher les events "Lire la suite"
+            articlesToRender.forEach((_, index) => {
+                const btn = document.getElementById(`btn-more-${index}`);
+                const text = document.getElementById(`article-resume-${index}`);
+                if (btn && text) {
+                    // Si le texte est court, on cache le bouton
+                    if (text.scrollHeight <= 100) {
+                        btn.style.display = 'none';
+                    }
+                    btn.addEventListener('click', () => {
+                        if (text.style.maxHeight === '100px') {
+                            text.style.maxHeight = text.scrollHeight + 'px';
+                            btn.innerHTML = 'Fermer ↑';
+                        } else {
+                            text.style.maxHeight = '100px';
+                            btn.innerHTML = 'Lire la suite ↓';
+                        }
+                    });
+                }
             });
         };
 

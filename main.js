@@ -64,24 +64,39 @@ async function fetchArticles() {
         
         const articles = [];
 
-        // Téléchargement parallèle robuste
         const fetchPromises = jsonFiles.map(async fileName => {
             try {
                 const articleResponse = await fetch(baseUrl + fileName);
                 if (articleResponse.ok) {
                     const textData = await articleResponse.text();
                     
-                    // Nettoyage: si Make.com envoie le JSON encapsulé dans du Markdown
-                    let cleanedText = textData.trim();
-                    if (cleanedText.startsWith('```json')) {
-                        cleanedText = cleanedText.replace(/^```json\s*/i, '').replace(/\s*```$/i, '').trim();
+                    // Fonction pour nettoyer le Markdown du résumé
+                    const stripMarkdown = (text) => {
+                        if (!text) return "";
+                        return text
+                            .replace(/(\*\*|__)(.*?)\1/g, '$2') // Gras
+                            .replace(/(\*|_)(.*?)\1/g, '$2') // Italique
+                            .replace(/!\[.*?\]\(.*?\)/g, '') // Images
+                            .replace(/\[([^\]]+)\]\([^\)]+\)/g, '$1') // Liens (garde le texte)
+                            .replace(/^\s{0,3}>\s?/gm, '') // Citations
+                            .replace(/^(#+)\s+/gm, '') // Titres (H1, H2...)
+                            .replace(/(`{1,3})([\s\S]*?)\1/g, '$2') // Code
+                            .replace(/^-{3,}/gm, '') // Lignes horizontales
+                            .trim();
+                    };
+
+                    // Extraction du bloc JSON strict (ignorer le texte avant ou après)
+                    let jsonString = textData;
+                    const jsonMatch = textData.match(/\{[\s\S]*\}/);
+                    if (jsonMatch) {
+                        jsonString = jsonMatch[0];
                     }
 
                     let articleData;
                     try {
-                        articleData = JSON.parse(cleanedText);
+                        articleData = JSON.parse(jsonString);
                     } catch (e) {
-                        // Tolérance d'erreur si texte brut
+                        // Tolérance d'erreur
                         articleData = {
                             titre: "Actualité",
                             resume: textData.substring(0, 200) + "...",
@@ -91,14 +106,15 @@ async function fetchArticles() {
 
                     // Mapping des propriétés (support du français et anglais)
                     const mappedTitle = articleData.titre || articleData.title || "Nouvel Article";
-                    const mappedSummary = articleData.resume || articleData.summary || "Résumé indisponible.";
+                    let rawSummary = articleData.resume || articleData.summary || "Résumé indisponible.";
+                    const mappedSummary = stripMarkdown(rawSummary); // Nettoyage Markdown
+                    
                     const mappedCategory = articleData.categorie || articleData.category || "Général";
                     const mappedSourceUrl = articleData.source_url || articleData.lien_source || "#";
                     const mappedSourceName = articleData.source_name || articleData.nom_source || "Lire la source";
-                    const fallbackImageUrl = 'assets/ai_data_processing.png';
                     
                     // Assignation de l'image via la catégorie
-                    let dynamicImageUrl = fallbackImageUrl;
+                    let dynamicImageUrl = 'assets/ai_data_processing.png';
                     const catStr = mappedCategory.toLowerCase();
                     if (catStr.includes('innovation')) dynamicImageUrl = 'assets/category_innovation.png';
                     else if (catStr.includes('soci')) dynamicImageUrl = 'assets/category_societe.png';

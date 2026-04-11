@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Veille IA - L'actualité de l'Intelligence Artificielle</title>
+    <meta name="description" content="Découvrez les dernières actualités, innovations et tendances de l'Intelligence Artificielle.">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    
+    <!-- HEADER -->
+    <header id="main-header">
+        <div class="container header-container">
+            <div class="logo">
+                <h1>Veille <span>IA</span></h1>
+            </div>
+            <nav id="main-nav">
+                <ul>
+                    <li><a href="#hero">Accueil</a></li>
+                    <li><a href="#news">Actualités</a></li>
+                    <li><a href="#newsletter">S'abonner</a></li>
+                </ul>
+            </nav>
+            <div class="menu-toggle" id="mobile-menu">
+                <span class="bar"></span>
+                <span class="bar"></span>
+                <span class="bar"></span>
+            </div>
+        </div>
+    </header>
+
+    <!-- HERO SECTION -->
+    <section id="hero" class="hero">
+        <div class="container hero-content">
+            <h2 class="hero-title">L'Avenir, Aujourd'hui.</h2>
+            <p class="hero-subtitle">Restez informé des dernières avancées en Intelligence Artificielle de manière simple et accessible.</p>
+            <a href="#news" class="btn btn-primary">Explorer l'Actualité</a>
+        </div>
+        <div class="hero-background">
+            <div class="glow glow-1"></div>
+            <div class="glow glow-2"></div>
+        </div>
+    </section>
+
+    <!-- LATEST NEWS SECTION -->
+    <section id="news" class="news-section">
+        <div class="container">
+            <h2 class="section-title">Dernières <span>Avancées</span></h2>
+            <div class="news-grid">
+                
+                <!-- Card 1 -->
+                <article class="news-card">
+                    <div class="card-image-wrapper">
+                        <img src="assets/ai_brain_network.png" alt="Cerveau IA lumineux" class="card-image">
+                        <span class="category-badge">Innovation</span>
+                    </div>
+                    <div class="card-content">
+                        <span class="date">11 Avril 2026</span>
+                        <h3 class="card-title">Naissance des réseaux de neurones adaptatifs</h3>
+                        <p class="card-excerpt">Une nouvelle génération d'algorithmes permet aux IA d'ajuster leur architecture en temps réel pour optimiser les performances de calcul.</p>
+                        <a href="#" class="read-more">Lire l'article &rarr;</a>
+                    </div>
+                </article>
+
+                <!-- Card 2 -->
+                <article class="news-card">
+                    <div class="card-image-wrapper">
+                        <img src="assets/robot_hand_touch.png" alt="Main de robot touchant une main d'homme" class="card-image">
+                        <span class="category-badge">Société</span>
+                    </div>
+                    <div class="card-content">
+                        <span class="date">9 Avril 2026</span>
+                        <h3 class="card-title">Robotique et santé : de nouvelles synergies</h3>
+                        <p class="card-excerpt">Les assistants robotiques intègrent désormais des IA empathiques pour accompagner au mieux les patients dans les centres médicaux.</p>
+                        <a href="#" class="read-more">Lire l'article &rarr;</a>
+                    </div>
+                </article>
+
+                <!-- Card 3 -->
+                <article class="news-card">
+                    <div class="card-image-wrapper">
+                        <img src="assets/ai_data_processing.png" alt="Salle de serveurs traitant des données IA" class="card-image">
+                        <span class="category-badge">Technologie</span>
+                    </div>
+                    <div class="card-content">
+                        <span class="date">8 Avril 2026</span>
+                        <h3 class="card-title">Les data centers passent au refroidissement quantique</h3>
+                        <p class="card-excerpt">Face aux besoins énergétiques de l'entraînement des larges modèles de langage, de nouvelles solutions de refroidissement émergent.</p>
+                        <a href="#" class="read-more">Lire l'article &rarr;</a>
+                    </div>
+                </article>
+
+            </div>
+        </div>
+    </section>
+
+    <!-- NEWSLETTER SECTION -->
+    <section id="newsletter" class="newsletter-section">
+        <div class="container newsletter-content">
+            <h2 class="newsletter-title">Ne manquez aucune tendance</h2>
+            <p class="newsletter-subtitle">Abonnez-vous à notre newsletter hebdomadaire pour recevoir un condensé des actualités IA qui comptent le plus.</p>
+            <form id="newsletter-form" class="newsletter-form">
+                <input type="email" id="email" name="email" placeholder="Votre adresse e-mail..." required />
+                <button type="submit" class="btn btn-accent">S'abonner</button>
+            </form>
+            <p id="form-msg" class="form-msg"></p>
+        </div>
+        <div class="newsletter-bg-glow"></div>
+    </section>
+
+    <!-- FOOTER -->
+    <footer class="main-footer">
+        <div class="container footer-container">
+            <div class="footer-logo">
+                <h2>Veille <span>IA</span></h2>
+                <p>Créé pour le grand public.</p>
+            </div>
+            <div class="footer-links">
+                <ul>
+                    <li><a href="#">Politique de confidentialité</a></li>
+                    <li><a href="#">Conditions d'utilisation</a></li>
+                    <li><a href="#">Nous contacter</a></li>
+                </ul>
+            </div>
+            <p class="copyright">&copy; 2026 Veille IA. Tous droits réservés.</p>
+        </div>
+    </footer>
+
+    <script src="main.js"></script>
+</body>
+</html>

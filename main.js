@@ -52,11 +52,14 @@ async function fetchArticles() {
     if (!container || !archivesList) return;
 
     try {
-        const indexUrl = 'https://raw.githubusercontent.com/quentindonizalski-coder/veille-ia/main/articles/index.json';
-        const response = await fetch(indexUrl);
-        if (!response.ok) throw new Error('Impossible de charger l\'index des articles.');
+        // On revient à l'API GitHub pour obtenir la liste en temps réel des fichiers. 
+        // L'API a une limite de 60 appels/heure PAR VISITEUR, ce qui est suffisant.
+        const repoUrl = 'https://api.github.com/repos/quentindonizalski-coder/veille-ia/contents/articles';
+        const response = await fetch(repoUrl);
+        if (!response.ok) throw new Error('Impossible de charger le dépôt.');
         
-        const jsonFiles = await response.json();
+        const files = await response.json();
+        const jsonFiles = files.filter(f => f.name.endsWith('.json') && f.name !== 'index.json').map(f => f.name);
         const baseUrl = 'https://raw.githubusercontent.com/quentindonizalski-coder/veille-ia/main/articles/';
         
         const articles = [];

@@ -116,14 +116,27 @@ async function fetchArticles() {
                     const mappedCategory = articleData.categorie || articleData.category || "Technologie";
                     const mappedSourceUrl = articleData.source_url || articleData.lien_source || "#";
                     const mappedSourceName = articleData.source_name || articleData.nom_source || mappedTitle;
-                    
-                    // Assignation de l'image via la catégorie
-                    let dynamicImageUrl = 'assets/ai_data_processing.png';
-                    const catStr = mappedCategory.toLowerCase();
-                    if (catStr.includes('innovation')) dynamicImageUrl = 'assets/category_innovation.png';
-                    else if (catStr.includes('soci')) dynamicImageUrl = 'assets/category_societe.png';
-                    else if (catStr.includes('technologi')) dynamicImageUrl = 'assets/category_technologie.png';
-                    else if (catStr.includes('business')) dynamicImageUrl = 'assets/ai_data_processing.png';
+                    // Assignation de l'image via Unsplash
+                    let englishKeywords = "technology,ai";
+                    if (mappedTitle) {
+                        const words = mappedTitle.toLowerCase()
+                            .replace(/[.,'’""«»()]/g, ' ')
+                            .split(' ')
+                            .filter(w => w.length > 3 && !['pour', 'avec', 'dans', 'comment', 'cette', 'plus', 'sont', 'faire'].includes(w));
+                        
+                        const dict = {
+                            'intelligence': 'ai', 'artificielle': 'ai', 'santé': 'health', 
+                            'données': 'data', 'entreprise': 'business', 'réseaux': 'network',
+                            'sécurité': 'security', 'travail': 'work', 'avenir': 'future',
+                            'monde': 'world', 'robotique': 'robotics', 'nouvelle': 'new'
+                        };
+                        
+                        const translatedWords = words.map(w => dict[w] || w).slice(0, 3);
+                        if (translatedWords.length > 0) {
+                            englishKeywords = translatedWords.join(',');
+                        }
+                    }
+                    const dynamicImageUrl = `https://source.unsplash.com/800x400/?${englishKeywords}`;
 
                     const finalArticle = {
                         title: mappedTitle,

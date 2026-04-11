@@ -64,12 +64,41 @@ async function fetchArticles() {
         
         const articles = [];
 
-        // Téléchargement parallèle
+        // Téléchargement parallèle robuste
         const fetchPromises = jsonFiles.map(async fileName => {
-            const articleResponse = await fetch(baseUrl + fileName);
-            if (articleResponse.ok) {
-                const articleData = await articleResponse.json();
-                articles.push(articleData);
+            try {
+                const articleResponse = await fetch(baseUrl + fileName);
+                if (articleResponse.ok) {
+                    const textData = await articleResponse.text();
+                    let articleData;
+                    
+                    try {
+                        articleData = JSON.parse(textData);
+                    } catch (e) {
+                        // Tolérance d'erreur si Make.com envoie du format texte brut 
+                        // au lieu d'un format JSON valide.
+                        articleData = {
+                            title: "Actualité (import auto)",
+                            summary: textData.substring(0, 200) + "...",
+                            category: "Auto"
+                        };
+                    }
+
+                    // Détection du timestamp dans le nom du fichier poussé par Make.com 
+                    // (ex: article-1775948837.json)
+                    const tsMatch = fileName.match(/(\d{10,13})\.json/);
+                    if (tsMatch) {
+                        const ts = parseInt(tsMatch[1], 10);
+                        const tsDate = ts > 9999999999 ? new Date(ts) : new Date(ts * 1000);
+                        const moisNoms = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"];
+                        // Remplacer ou créer la propriété date pour que le tri fonctionne correctement
+                        articleData.date = `${tsDate.getDate()} ${moisNoms[tsDate.getMonth()]} ${tsDate.getFullYear()}`;
+                    }
+
+                    articles.push(articleData);
+                }
+            } catch (err) {
+                console.error("Impossible de parser le fichier", fileName, err);
             }
         });
 

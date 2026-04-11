@@ -40,21 +40,5 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Gestion du formulaire newsletter
-    const newsletterForm = document.getElementById('newsletter-form');
-    const formMsg = document.getElementById('form-msg');
-    
-    newsletterForm.addEventListener('submit', (e) => {
-        e.preventDefault();
-        const emailInput = document.getElementById('email');
-        if (emailInput.value) {
-            formMsg.textContent = `Merci ! Un e-mail de confirmation a été envoyé à ${emailInput.value}.`;
-            formMsg.style.color = '#60A5FA'; // Accent color
-            emailInput.value = '';
-            
-            setTimeout(() => {
-                formMsg.textContent = '';
-            }, 5000);
-        }
-    });
+    // Le formulaire newsletter est désormais géré par Mailjet.
 });

@@ -48,8 +48,16 @@
     <section id="news" class="news-section">
         <div class="container">
             <h2 class="section-title">Dernières <span>Avancées</span></h2>
-            <div class="news-grid" id="dynamic-news-container">
-                <p style="text-align: center; width: 100%; grid-column: 1 / -1; color: var(--text-muted);">Chargement des articles en cours...</p>
+            <div class="news-layout">
+                <div class="main-articles" id="dynamic-news-container">
+                    <p style="text-align: center; width: 100%; grid-column: 1 / -1; color: var(--text-muted);">Chargement des articles en cours...</p>
+                </div>
+                <aside class="sidebar-archives">
+                    <h3>Archives</h3>
+                    <ul id="archives-list">
+                        <li><p style="color: var(--text-muted); font-size: 0.9em;">Chargement...</p></li>
+                    </ul>
+                </aside>
             </div>
         </div>
     </section>

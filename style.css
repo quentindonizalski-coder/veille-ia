@@ -229,10 +229,70 @@ h2 span, h1 span {
     text-align: center;
 }
 
-.news-grid {
+.news-layout {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-    gap: 2rem;
+    grid-template-columns: 1fr 300px;
+    gap: 3rem;
+    align-items: start;
+}
+
+@media (max-width: 900px) {
+    .news-layout {
+        grid-template-columns: 1fr;
+    }
+}
+
+.main-articles {
+    display: flex;
+    flex-direction: column;
+    gap: 2.5rem;
+}
+
+.sidebar-archives {
+    background: var(--bg-card);
+    border: 1px solid var(--glass-border);
+    border-radius: 20px;
+    padding: 2rem;
+    position: sticky;
+    top: 100px;
+}
+
+.sidebar-archives h3 {
+    font-size: 1.5rem;
+    margin-bottom: 1.5rem;
+    color: var(--text-main);
+    border-bottom: 1px solid var(--glass-border);
+    padding-bottom: 0.5rem;
+}
+
+#archives-list {
+    list-style: none;
+    padding: 0;
+}
+
+#archives-list li {
+    margin-bottom: 0.8rem;
+}
+
+#archives-list a {
+    color: var(--text-muted);
+    font-weight: 600;
+    cursor: pointer;
+    transition: color 0.3s, padding-left 0.3s;
+    display: inline-block;
+}
+
+#archives-list a:hover, #archives-list a.active {
+    color: var(--accent);
+    padding-left: 5px;
+}
+
+.news-card.large .card-image-wrapper {
+    height: 350px;
+}
+
+.news-card.large .card-title {
+    font-size: 1.8rem;
 }
 
 .news-card {

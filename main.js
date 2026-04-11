@@ -70,32 +70,61 @@ async function fetchArticles() {
                 const articleResponse = await fetch(baseUrl + fileName);
                 if (articleResponse.ok) {
                     const textData = await articleResponse.text();
-                    let articleData;
                     
+                    // Nettoyage: si Make.com envoie le JSON encapsulé dans du Markdown
+                    let cleanedText = textData.trim();
+                    if (cleanedText.startsWith('```json')) {
+                        cleanedText = cleanedText.replace(/^```json\s*/i, '').replace(/\s*```$/i, '').trim();
+                    }
+
+                    let articleData;
                     try {
-                        articleData = JSON.parse(textData);
+                        articleData = JSON.parse(cleanedText);
                     } catch (e) {
-                        // Tolérance d'erreur si Make.com envoie du format texte brut 
-                        // au lieu d'un format JSON valide.
+                        // Tolérance d'erreur si texte brut
                         articleData = {
-                            title: "Actualité (import auto)",
-                            summary: textData.substring(0, 200) + "...",
-                            category: "Auto"
+                            titre: "Actualité",
+                            resume: textData.substring(0, 200) + "...",
+                            categorie: "Auto"
                         };
                     }
 
-                    // Détection du timestamp dans le nom du fichier poussé par Make.com 
-                    // (ex: article-1775948837.json)
+                    // Mapping des propriétés (support du français et anglais)
+                    const mappedTitle = articleData.titre || articleData.title || "Nouvel Article";
+                    const mappedSummary = articleData.resume || articleData.summary || "Résumé indisponible.";
+                    const mappedCategory = articleData.categorie || articleData.category || "Général";
+                    const mappedSourceUrl = articleData.source_url || articleData.lien_source || "#";
+                    const mappedSourceName = articleData.source_name || articleData.nom_source || "Lire la source";
+                    const fallbackImageUrl = 'assets/ai_data_processing.png';
+                    
+                    // Assignation de l'image via la catégorie
+                    let dynamicImageUrl = fallbackImageUrl;
+                    const catStr = mappedCategory.toLowerCase();
+                    if (catStr.includes('innovation')) dynamicImageUrl = 'assets/category_innovation.png';
+                    else if (catStr.includes('soci')) dynamicImageUrl = 'assets/category_societe.png';
+                    else if (catStr.includes('technologi')) dynamicImageUrl = 'assets/category_technologie.png';
+                    else if (catStr.includes('business')) dynamicImageUrl = 'assets/ai_data_processing.png';
+
+                    const finalArticle = {
+                        title: mappedTitle,
+                        summary: mappedSummary,
+                        category: mappedCategory,
+                        source_url: mappedSourceUrl,
+                        source_name: mappedSourceName,
+                        image: articleData.image || dynamicImageUrl,
+                        date: articleData.date
+                    };
+
+                    // Détection du timestamp dans le nom du fichier poussé par Make.com
                     const tsMatch = fileName.match(/(\d{10,13})\.json/);
-                    if (tsMatch) {
+                    if (tsMatch && !finalArticle.date) {
                         const ts = parseInt(tsMatch[1], 10);
                         const tsDate = ts > 9999999999 ? new Date(ts) : new Date(ts * 1000);
                         const moisNoms = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"];
-                        // Remplacer ou créer la propriété date pour que le tri fonctionne correctement
-                        articleData.date = `${tsDate.getDate()} ${moisNoms[tsDate.getMonth()]} ${tsDate.getFullYear()}`;
+                        finalArticle.date = `${tsDate.getDate()} ${moisNoms[tsDate.getMonth()]} ${tsDate.getFullYear()}`;
                     }
 
-                    articles.push(articleData);
+                    articles.push(finalArticle);
                 }
             } catch (err) {
                 console.error("Impossible de parser le fichier", fileName, err);

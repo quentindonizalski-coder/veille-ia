@@ -51,19 +51,22 @@ async function fetchArticles() {
     if (!container) return;
 
     try {
-        const repoUrl = 'https://api.github.com/repos/quentindonizalski-coder/veille-ia/contents/articles';
-        const response = await fetch(repoUrl);
-        if (!response.ok) throw new Error('Erreur API GitHub. Limite de requêtes atteinte ?');
+        // Au lieu d'utiliser l'API publique restreinte, on télécharge un fichier statique d'index
+        // depuis le nom de domaine brut de GitHub, qui ne possède pas de limite sévère.
+        const indexUrl = 'https://raw.githubusercontent.com/quentindonizalski-coder/veille-ia/main/articles/index.json';
+        const response = await fetch(indexUrl);
+        if (!response.ok) throw new Error('Impossible de charger l\'index des articles.');
         
-        const files = await response.json();
-        
-        // On ne conserve que les fichiers JSON
-        const jsonFiles = files.filter(f => f.name.endsWith('.json'));
+        const jsonFiles = await response.json();
         
         container.innerHTML = ''; // Nettoyage du texte de chargement
         
-        for (const file of jsonFiles) {
-            const articleResponse = await fetch(file.download_url);
+        const baseUrl = 'https://raw.githubusercontent.com/quentindonizalski-coder/veille-ia/main/articles/';
+
+        for (const fileName of jsonFiles) {
+            const articleResponse = await fetch(baseUrl + fileName);
+            if (!articleResponse.ok) continue;
+            
             const article = await articleResponse.json();
             
             // Image par défaut si manquante

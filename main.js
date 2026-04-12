@@ -97,15 +97,25 @@ async function fetchArticles() {
                     try {
                         articleData = JSON.parse(jsonString);
                     } catch (e) {
-                        // Héritage de secours si Make.com envoie du TXT brut au lieu du JSON
-                        const titleMatch = textData.match(/"([^"]+)"/);
-                        const urlMatch = textData.match(/https?:\/\/[^\s]+/);
-                        articleData = {
-                            titre: titleMatch ? titleMatch[1] : "Actualité Tech",
-                            resume: textData, // Texte COMPLET sans tronquer
-                            categorie: "Technologie", 
-                            source_url: urlMatch ? urlMatch[0] : "#"
-                        };
+                        articleData = {};
+                        // Heuristique avancée pour rattraper les JSON invalides de Make.com (ex: guillemets non échappés)
+                        const tMatch = textData.match(/"titre"\s*:\s*"(.*?)"\s*,\s*"resume"/);
+                        if (tMatch) articleData.titre = tMatch[1];
+                        
+                        const rMatch = textData.match(/"resume"\s*:\s*"(.*?)"\s*,\s*"categorie"/);
+                        if (rMatch) articleData.resume = rMatch[1];
+                        
+                        const cMatch = textData.match(/"categorie"\s*:\s*"(.*?)"\s*,\s*"source_url"/);
+                        if (cMatch) articleData.categorie = cMatch[1];
+                        
+                        const uMatch = textData.match(/"source_url"\s*:\s*"(.*?)"/);
+                        if (uMatch) {
+                            articleData.source_url = uMatch[1];
+                        } else {
+                            // Extraction ultra stricte (sans attraper les guillemets ou accolades)
+                            const rawUrl = textData.match(/https?:\/\/[^\s"\}]+/);
+                            if (rawUrl) articleData.source_url = rawUrl[0];
+                        }
                     }
 
                     // Mapping des propriétés (support du français et anglais)
@@ -116,27 +126,19 @@ async function fetchArticles() {
                     const mappedCategory = articleData.categorie || articleData.category || "Technologie";
                     const mappedSourceUrl = articleData.source_url || articleData.lien_source || "#";
                     const mappedSourceName = articleData.source_name || articleData.nom_source || mappedTitle;
-                    // Assignation de l'image via Unsplash
-                    let englishKeywords = "technology,ai";
+
+                    // Assignation de l'image via Picsum Photos
+                    let seedKeyword = "tech";
                     if (mappedTitle) {
                         const words = mappedTitle.toLowerCase()
                             .replace(/[.,'’""«»()]/g, ' ')
                             .split(' ')
-                            .filter(w => w.length > 3 && !['pour', 'avec', 'dans', 'comment', 'cette', 'plus', 'sont', 'faire'].includes(w));
-                        
-                        const dict = {
-                            'intelligence': 'ai', 'artificielle': 'ai', 'santé': 'health', 
-                            'données': 'data', 'entreprise': 'business', 'réseaux': 'network',
-                            'sécurité': 'security', 'travail': 'work', 'avenir': 'future',
-                            'monde': 'world', 'robotique': 'robotics', 'nouvelle': 'new'
-                        };
-                        
-                        const translatedWords = words.map(w => dict[w] || w).slice(0, 3);
-                        if (translatedWords.length > 0) {
-                            englishKeywords = translatedWords.join(',');
+                            .filter(w => w.length > 3 && !['pour', 'avec', 'dans', 'cette', 'plus', 'sont', 'faire'].includes(w));
+                        if (words.length > 0) {
+                            seedKeyword = words[0]; // Utilise le premier mot significatif comme seed unique
                         }
                     }
-                    const dynamicImageUrl = `https://source.unsplash.com/800x400/?${englishKeywords}`;
+                    const dynamicImageUrl = `https://picsum.photos/seed/${seedKeyword}/800/400`;
 
                     const finalArticle = {
                         title: mappedTitle,

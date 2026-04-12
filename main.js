@@ -127,18 +127,31 @@ async function fetchArticles() {
                     const mappedSourceUrl = articleData.source_url || articleData.lien_source || "#";
                     const mappedSourceName = articleData.source_name || articleData.nom_source || mappedTitle;
 
-                    // Assignation de l'image via Picsum Photos
-                    let seedKeyword = "tech";
+                    // Assignation de l'image via Pollinations AI (Images HD contextuelles)
+                    let englishKeywords = "technology ai future";
                     if (mappedTitle) {
                         const words = mappedTitle.toLowerCase()
                             .replace(/[.,'’""«»()]/g, ' ')
                             .split(' ')
-                            .filter(w => w.length > 3 && !['pour', 'avec', 'dans', 'cette', 'plus', 'sont', 'faire'].includes(w));
-                        if (words.length > 0) {
-                            seedKeyword = words[0]; // Utilise le premier mot significatif comme seed unique
+                            .filter(w => w.length > 3 && !['pour', 'avec', 'dans', 'comment', 'cette', 'plus', 'sont', 'faire'].includes(w));
+                        
+                        const dict = {
+                            'intelligence': 'ai', 'artificielle': 'ai', 'santé': 'health', 
+                            'données': 'data', 'entreprise': 'business', 'réseaux': 'network',
+                            'sécurité': 'security', 'travail': 'work', 'avenir': 'future',
+                            'monde': 'world', 'robotique': 'robotics', 'nouvelle': 'new',
+                            'influenceuse': 'influencer', 'généalogie': 'genealogy'
+                        };
+                        
+                        const translatedWords = words.map(w => dict[w] || w).slice(0, 4);
+                        if (translatedWords.length > 0) {
+                            englishKeywords = translatedWords.join(' ');
                         }
                     }
-                    const dynamicImageUrl = `https://picsum.photos/seed/${seedKeyword}/800/400`;
+                    
+                    // Formatage clean pour l'URL avec style artistique pertinent et élégant
+                    const promptText = encodeURIComponent(`${englishKeywords} high quality technology web aesthetic`);
+                    const dynamicImageUrl = `https://image.pollinations.ai/prompt/${promptText}?width=800&height=400&nologo=true`;
 
                     const finalArticle = {
                         title: mappedTitle,

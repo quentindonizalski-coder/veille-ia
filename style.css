@@ -384,6 +384,26 @@ h2 span, h1 span {
     color: var(--accent);
 }
 
+.card-permalink {
+    color: inherit;
+}
+
+.card-permalink:hover {
+    color: var(--accent);
+}
+
+.search-fallback {
+    margin-top: 0.5rem;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    align-self: flex-start;
+    text-decoration: underline;
+}
+
+.search-fallback:hover {
+    color: var(--accent);
+}
+
 /* NEWSLETTER */
 .newsletter-section {
     padding: 8rem 0;
@@ -560,4 +580,9 @@ h2 span, h1 span {
         flex-direction: column;
         text-align: center;
     }
+}
+
+/* Lien direct vers un article : ne pas passer sous l'en-tête fixe */
+.news-card {
+    scroll-margin-top: 90px;
 }

@@ -46,178 +46,108 @@ document.addEventListener('DOMContentLoaded', () => {
     fetchArticles();
 });
 
+const REPO = 'quentindonizalski-coder/veille-ia';
+const RAW_BASE = `https://raw.githubusercontent.com/${REPO}/main/articles/`;
+
+const CATEGORY_FALLBACK_IMAGES = {
+    'technologie': 'assets/category_technologie.png',
+    'société': 'assets/category_societe.png',
+    'societe': 'assets/category_societe.png',
+    'innovation': 'assets/category_innovation.png',
+    'business': 'assets/ai_data_processing.png'
+};
+
+function escapeHtml(str) {
+    return String(str ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+function stripMarkdown(text) {
+    if (!text) return '';
+    return text
+        .replace(/(\*\*|__)(.*?)\1/g, '$2')
+        .replace(/(\*|_)(.*?)\1/g, '$2')
+        .replace(/!\[.*?\]\(.*?\)/g, '')
+        .replace(/\[([^\]]+)\]\([^\)]+\)/g, '$1')
+        .replace(/^\s{0,3}>\s?/gm, '')
+        .replace(/^(#+)\s+/gm, '')
+        .replace(/(`{1,3})([\s\S]*?)\1/g, '$2')
+        .replace(/^-{3,}/gm, '')
+        .trim();
+}
+
+function normalizeArticle(raw, fileName) {
+    const P = window.ArticleParser;
+    const id = fileName.replace(/^article-/, '').replace(/\.json$/, '');
+    const title = raw.title || 'Nouvel article';
+    const category = raw.category || 'Technologie';
+    const parsedDate = P.parseDate(raw.date) || P.dateFromFileName(fileName);
+    const sourceUrl = /^https?:\/\//.test(raw.source_url || '') ? raw.source_url : '';
+    let sourceName = raw.source_name;
+    if (!sourceName && sourceUrl) {
+        try {
+            const host = new URL(sourceUrl).hostname.replace(/^www\./, '');
+            sourceName = host === 'news.google.com' ? 'Google Actualités' : host;
+        } catch (e) { /* ignore */ }
+    }
+    return {
+        id,
+        title,
+        summary: stripMarkdown(raw.summary || 'Résumé indisponible.'),
+        category,
+        source_url: sourceUrl,
+        source_name: sourceName || 'Source',
+        // Miniature générée une fois pour toutes par la GitHub Action (scripts/generate-thumbnails.js).
+        // Si elle n'existe pas encore, l'image de la catégorie s'affiche à la place.
+        image: raw.image || `assets/thumbs/${id}.jpg`,
+        fallbackImage: CATEGORY_FALLBACK_IMAGES[category.toLowerCase()] || 'assets/ai_data_processing.png',
+        _parsedDate: parsedDate || new Date(0),
+        date: parsedDate ? P.formatDateFR(parsedDate) : '',
+        _archiveKey: parsedDate ? `${P.MOIS_FR[parsedDate.getMonth()]} ${parsedDate.getFullYear()}` : 'Anciens articles',
+        _monthYearIndex: parsedDate ? parsedDate.getFullYear() * 100 + parsedDate.getMonth() : 0
+    };
+}
+
+// 1) Index généré au build Netlify (1 seule requête, rapide).
+// 2) Secours : liste via l'API GitHub + téléchargement de chaque fichier.
+async function loadRawArticles() {
+    try {
+        const res = await fetch('articles/index.json', { cache: 'no-cache' });
+        if (res.ok) {
+            const index = await res.json();
+            if (Array.isArray(index) && index.length) return index;
+        }
+    } catch (e) { /* on passe au plan B */ }
+
+    const response = await fetch(`https://api.github.com/repos/${REPO}/contents/articles`);
+    if (!response.ok) throw new Error('Impossible de charger le dépôt.');
+    const files = (await response.json())
+        .filter(f => f.name.endsWith('.json') && f.name !== 'index.json')
+        .map(f => f.name);
+
+    const results = await Promise.all(files.map(async file => {
+        try {
+            const r = await fetch(RAW_BASE + file);
+            if (!r.ok) return null;
+            return { file, ...window.ArticleParser.parseArticleText(await r.text()) };
+        } catch (e) {
+            console.error('Impossible de lire', file, e);
+            return null;
+        }
+    }));
+    return results.filter(Boolean);
+}
+
 async function fetchArticles() {
     const container = document.getElementById('dynamic-news-container');
     const archivesList = document.getElementById('archives-list');
     if (!container || !archivesList) return;
 
     try {
-        // On revient à l'API GitHub pour obtenir la liste en temps réel des fichiers. 
-        // L'API a une limite de 60 appels/heure PAR VISITEUR, ce qui est suffisant.
-        const repoUrl = 'https://api.github.com/repos/quentindonizalski-coder/veille-ia/contents/articles';
-        const response = await fetch(repoUrl);
-        if (!response.ok) throw new Error('Impossible de charger le dépôt.');
-        
-        const files = await response.json();
-        const jsonFiles = files.filter(f => f.name.endsWith('.json') && f.name !== 'index.json').map(f => f.name);
-        const baseUrl = 'https://raw.githubusercontent.com/quentindonizalski-coder/veille-ia/main/articles/';
-        
-        const articles = [];
+        const rawArticles = await loadRawArticles();
+        const articles = rawArticles.map(r => normalizeArticle(r, r.file));
+        articles.sort((a, b) => b._parsedDate - a._parsedDate || b.id.localeCompare(a.id));
 
-        // Téléchargement parallèle robuste
-        const fetchPromises = jsonFiles.map(async fileName => {
-            try {
-                const articleResponse = await fetch(baseUrl + fileName);
-                if (articleResponse.ok) {
-                    const textData = await articleResponse.text();
-                    
-                    // Fonction pour nettoyer le Markdown du résumé
-                    const stripMarkdown = (text) => {
-                        if (!text) return "";
-                        return text
-                            .replace(/(\*\*|__)(.*?)\1/g, '$2') // Gras
-                            .replace(/(\*|_)(.*?)\1/g, '$2') // Italique
-                            .replace(/!\[.*?\]\(.*?\)/g, '') // Images
-                            .replace(/\[([^\]]+)\]\([^\)]+\)/g, '$1') // Liens (garde le texte)
-                            .replace(/^\s{0,3}>\s?/gm, '') // Citations
-                            .replace(/^(#+)\s+/gm, '') // Titres (H1, H2...)
-                            .replace(/(`{1,3})([\s\S]*?)\1/g, '$2') // Code
-                            .replace(/^-{3,}/gm, '') // Lignes horizontales
-                            .trim();
-                    };
-
-                    // Extraction du bloc JSON strict (ignorer le texte avant ou après)
-                    let jsonString = textData;
-                    const jsonMatch = textData.match(/\{[\s\S]*\}/);
-                    if (jsonMatch) {
-                        jsonString = jsonMatch[0];
-                    }
-
-                    let articleData;
-                    try {
-                        articleData = JSON.parse(jsonString);
-                    } catch (e) {
-                        articleData = {};
-                        // Heuristique avancée pour rattraper les JSON invalides de Make.com (ex: guillemets non échappés)
-                        const tMatch = textData.match(/"titre"\s*:\s*"(.*?)"\s*,\s*"resume"/);
-                        if (tMatch) articleData.titre = tMatch[1];
-                        
-                        const rMatch = textData.match(/"resume"\s*:\s*"(.*?)"\s*,\s*"categorie"/);
-                        if (rMatch) articleData.resume = rMatch[1];
-                        
-                        const cMatch = textData.match(/"categorie"\s*:\s*"(.*?)"\s*,\s*"source_url"/);
-                        if (cMatch) articleData.categorie = cMatch[1];
-                        
-                        const uMatch = textData.match(/"source_url"\s*:\s*"(.*?)"/);
-                        if (uMatch) {
-                            articleData.source_url = uMatch[1];
-                        } else {
-                            // Extraction ultra stricte (sans attraper les guillemets ou accolades)
-                            const rawUrl = textData.match(/https?:\/\/[^\s"\}]+/);
-                            if (rawUrl) articleData.source_url = rawUrl[0];
-                        }
-                    }
-
-                    // Mapping des propriétés (support du français et anglais)
-                    const mappedTitle = articleData.titre || articleData.title || "Nouvel Article";
-                    let rawSummary = articleData.resume || articleData.summary || "Résumé indisponible.";
-                    const mappedSummary = stripMarkdown(rawSummary); // Nettoyage Markdown complet
-                    
-                    const mappedCategory = articleData.categorie || articleData.category || "Technologie";
-                    const mappedSourceUrl = articleData.source_url || articleData.lien_source || "#";
-                    const mappedSourceName = articleData.source_name || articleData.nom_source || mappedTitle;
-
-                    // Assignation de l'image via Pollinations AI (Images HD contextuelles)
-                    let englishKeywords = "technology ai future";
-                    if (mappedTitle) {
-                        const words = mappedTitle.toLowerCase()
-                            .replace(/[.,'’""«»()]/g, ' ')
-                            .split(' ')
-                            .filter(w => w.length > 3 && !['pour', 'avec', 'dans', 'comment', 'cette', 'plus', 'sont', 'faire'].includes(w));
-                        
-                        const dict = {
-                            'intelligence': 'ai', 'artificielle': 'ai', 'santé': 'health', 
-                            'données': 'data', 'entreprise': 'business', 'réseaux': 'network',
-                            'sécurité': 'security', 'travail': 'work', 'avenir': 'future',
-                            'monde': 'world', 'robotique': 'robotics', 'nouvelle': 'new',
-                            'influenceuse': 'influencer', 'généalogie': 'genealogy'
-                        };
-                        
-                        const translatedWords = words.map(w => dict[w] || w).slice(0, 4);
-                        if (translatedWords.length > 0) {
-                            englishKeywords = translatedWords.join(' ');
-                        }
-                    }
-                    
-                    // Formatage clean pour l'URL avec style artistique pertinent et élégant
-                    const promptText = encodeURIComponent(`${englishKeywords} high quality technology web aesthetic`);
-                    const dynamicImageUrl = `https://image.pollinations.ai/prompt/${promptText}?width=800&height=400&nologo=true`;
-
-                    const finalArticle = {
-                        title: mappedTitle,
-                        summary: mappedSummary,
-                        category: mappedCategory,
-                        source_url: mappedSourceUrl,
-                        source_name: mappedSourceName,
-                        image: articleData.image || dynamicImageUrl,
-                        date: articleData.date
-                    };
-
-                    // Rétrocompatibilité timestamp et dates texte Make.com (article-2026-04-12-00-46.json)
-                    const tsMatch = fileName.match(/-(1\d{9,12})\.json/);
-                    const dateMatch = fileName.match(/article-(\d{4})-(\d{2})-(\d{2})/);
-                    
-                    if (!finalArticle.date) {
-                        const moisNoms = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"];
-                        if (dateMatch) {
-                            const annee = parseInt(dateMatch[1], 10);
-                            const moisIndex = parseInt(dateMatch[2], 10) - 1;
-                            const jour = parseInt(dateMatch[3], 10);
-                            finalArticle.date = `${jour} ${moisNoms[moisIndex]} ${annee}`;
-                        } else if (tsMatch) {
-                            const ts = parseInt(tsMatch[1], 10);
-                            const tsDate = ts > 9999999999 ? new Date(ts) : new Date(ts * 1000);
-                            finalArticle.date = `${tsDate.getDate()} ${moisNoms[tsDate.getMonth()]} ${tsDate.getFullYear()}`;
-                        }
-                    }
-
-                    articles.push(finalArticle);
-                }
-            } catch (err) {
-                console.error("Impossible de parser le fichier", fileName, err);
-            }
-        });
-
-        await Promise.all(fetchPromises);
-
-        // Mois FR pour le tri
-        const moisFR = {
-            "Janvier": 0, "Février": 1, "Mars": 2, "Avril": 3, "Mai": 4, "Juin": 5, 
-            "Juillet": 6, "Août": 7, "Septembre": 8, "Octobre": 9, "Novemre": 10, "Décembre": 11,
-            "Fevrier": 1, "Aout": 7, "Novembre": 10, "Decembre": 11
-        };
-
-        // Parse et tri par date du plus récent au plus ancien
-        articles.forEach(a => {
-            const dateStr = a.date || "";
-            const parts = dateStr.split(" ");
-            if (parts.length === 3) {
-                const jour = parseInt(parts[0], 10);
-                const mois = moisFR[parts[1]] !== undefined ? moisFR[parts[1]] : 0;
-                const annee = parseInt(parts[2], 10);
-                a._parsedDate = new Date(annee, mois, jour);
-                a._archiveKey = parts[1] + " " + parts[2]; // ex: "Avril 2026"
-                a._monthYearIndex = annee * 100 + mois; // Pour trier les archives
-            } else {
-                a._parsedDate = new Date(0);
-                a._archiveKey = "Anciens articles";
-                a._monthYearIndex = 0;
-            }
-        });
-
-        articles.sort((a, b) => b._parsedDate - a._parsedDate);
-
-        // Remplir Archives
+        // Archives par mois
         const archiveGroups = {};
         articles.forEach(a => {
             if (!archiveGroups[a._archiveKey]) {
@@ -225,90 +155,91 @@ async function fetchArticles() {
             }
             archiveGroups[a._archiveKey].articles.push(a);
         });
-
         const sortedArchiveKeys = Object.keys(archiveGroups).sort((k1, k2) => archiveGroups[k2].index - archiveGroups[k1].index);
 
-        archivesList.innerHTML = `<li><a class="active" id="btn-show-latest">5 derniers articles</a></li>`;
-        
-        sortedArchiveKeys.forEach(key => {
-            archivesList.innerHTML += `<li><a class="archive-link" data-key="${key}">${key}</a></li>`;
-        });
+        archivesList.innerHTML = `<li><a href="#news" class="active" id="btn-show-latest">5 derniers articles</a></li>` +
+            sortedArchiveKeys.map(key =>
+                `<li><a href="#news" class="archive-link" data-key="${escapeHtml(key)}">${escapeHtml(key)} <small>(${archiveGroups[key].articles.length})</small></a></li>`
+            ).join('');
 
-        // Fonction d'affichage
-        const renderArticles = (articlesToRender) => {
-            container.innerHTML = '';
+        const renderArticles = (articlesToRender, { expandId } = {}) => {
             if (articlesToRender.length === 0) {
                 container.innerHTML = '<p style="text-align: center; width: 100%; color: var(--text-muted);">Aucun article publié pour le moment.</p>';
                 return;
             }
 
-            articlesToRender.forEach((article, index) => {
-                const imageUrl = article.image || 'assets/ai_data_processing.png';
-                const articleId = `article-resume-${index}`;
-                const btnId = `btn-more-${index}`;
-
-                const articleHtml = `
-                    <article class="news-card large">
+            container.innerHTML = articlesToRender.map((article, index) => {
+                const searchUrl = 'https://www.google.com/search?q=' + encodeURIComponent(article.title);
+                const sourceLink = article.source_url
+                    ? `<a href="${escapeHtml(article.source_url)}" target="_blank" rel="noopener noreferrer" class="read-more">Lire l'article complet (${escapeHtml(article.source_name)}) &rarr;</a>`
+                    : '';
+                return `
+                    <article class="news-card large" id="a-${escapeHtml(article.id)}">
                         <div class="card-image-wrapper">
-                            <img src="${imageUrl}" alt="Illustration" class="card-image">
-                            <span class="category-badge">${article.category || 'Général'}</span>
+                            <img src="${escapeHtml(article.image)}" alt="${escapeHtml(article.title)}" class="card-image"
+                                 loading="${index < 2 ? 'eager' : 'lazy'}" decoding="async"
+                                 onerror="this.onerror=null;this.src='${escapeHtml(article.fallbackImage)}';">
+                            <span class="category-badge">${escapeHtml(article.category)}</span>
                         </div>
                         <div class="card-content">
-                            <span class="date">${article.date || ''}</span>
-                            <h3 class="card-title">${article.title}</h3>
+                            <span class="date">${escapeHtml(article.date)}</span>
+                            <h3 class="card-title"><a href="#a-${escapeHtml(article.id)}" class="card-permalink">${escapeHtml(article.title)}</a></h3>
                             <div class="card-excerpt-container" style="flex-grow: 1;">
-                                <p class="card-excerpt" id="${articleId}" style="max-height: 100px; overflow: hidden; transition: max-height 0.4s ease; margin-bottom: 0;">${article.summary}</p>
-                                <button id="${btnId}" style="background: none; border: none; color: var(--accent); cursor: pointer; font-weight: bold; margin-bottom: 1.5rem; padding-top: 5px; text-decoration: underline;">Lire la suite ↓</button>
+                                <p class="card-excerpt" id="article-resume-${index}" style="max-height: 100px; overflow: hidden; transition: max-height 0.4s ease; margin-bottom: 0;">${escapeHtml(article.summary)}</p>
+                                <button id="btn-more-${index}" style="background: none; border: none; color: var(--accent); cursor: pointer; font-weight: bold; margin-bottom: 1.5rem; padding-top: 5px; text-decoration: underline;">Lire la suite ↓</button>
                             </div>
-                            <a href="${article.source_url}" target="_blank" rel="noopener noreferrer" class="read-more">
-                                Source : ${article.source_name} &rarr;
-                            </a>
+                            ${sourceLink}
+                            <a href="${searchUrl}" target="_blank" rel="noopener noreferrer" class="search-fallback">Lien cassé ? Rechercher l'article</a>
                         </div>
-                    </article>
-                `;
-                container.innerHTML += articleHtml;
-            });
+                    </article>`;
+            }).join('');
 
-            // Attacher les events "Lire la suite"
-            articlesToRender.forEach((_, index) => {
+            articlesToRender.forEach((article, index) => {
                 const btn = document.getElementById(`btn-more-${index}`);
                 const text = document.getElementById(`article-resume-${index}`);
-                if (btn && text) {
-                    // Si le texte est court, on cache le bouton
-                    if (text.scrollHeight <= 100) {
-                        btn.style.display = 'none';
-                    }
-                    btn.addEventListener('click', () => {
-                        if (text.style.maxHeight === '100px') {
-                            text.style.maxHeight = text.scrollHeight + 'px';
-                            btn.innerHTML = 'Fermer ↑';
-                        } else {
-                            text.style.maxHeight = '100px';
-                            btn.innerHTML = 'Lire la suite ↓';
-                        }
-                    });
-                }
+                if (!btn || !text) return;
+                const toggle = (open) => {
+                    text.style.maxHeight = open ? text.scrollHeight + 'px' : '100px';
+                    btn.innerHTML = open ? 'Fermer ↑' : 'Lire la suite ↓';
+                };
+                if (text.scrollHeight <= 100) btn.style.display = 'none';
+                btn.addEventListener('click', () => toggle(text.style.maxHeight === '100px'));
+                if (article.id === expandId) toggle(true);
             });
         };
 
-        // Events de navigation
-        const navLinks = archivesList.querySelectorAll('a');
-        navLinks.forEach(link => {
-            link.addEventListener('click', (e) => {
-                navLinks.forEach(l => l.classList.remove('active'));
-                e.target.classList.add('active');
+        const setActive = (link) => {
+            archivesList.querySelectorAll('a').forEach(l => l.classList.remove('active'));
+            if (link) link.classList.add('active');
+        };
 
-                if (e.target.id === 'btn-show-latest') {
+        archivesList.querySelectorAll('a').forEach(link => {
+            link.addEventListener('click', (e) => {
+                const target = e.currentTarget;
+                setActive(target);
+                if (target.id === 'btn-show-latest') {
                     renderArticles(articles.slice(0, 5));
                 } else {
-                    const key = e.target.getAttribute('data-key');
-                    renderArticles(archiveGroups[key].articles);
+                    renderArticles(archiveGroups[target.getAttribute('data-key')].articles);
                 }
             });
         });
 
-        // Affichage par défaut (5 plus récents)
-        renderArticles(articles.slice(0, 5));
+        // Lien direct vers un article : https://site/#a-1792733439
+        const showFromHash = () => {
+            const m = location.hash.match(/^#a-(.+)$/);
+            const article = m && articles.find(a => a.id === decodeURIComponent(m[1]));
+            if (!article) return false;
+            const group = archiveGroups[article._archiveKey];
+            setActive(archivesList.querySelector(`a[data-key="${CSS.escape(article._archiveKey)}"]`));
+            renderArticles(group.articles, { expandId: article.id });
+            const el = document.getElementById(`a-${article.id}`);
+            if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            return true;
+        };
+        window.addEventListener('hashchange', showFromHash);
+
+        if (!showFromHash()) renderArticles(articles.slice(0, 5));
 
     } catch (error) {
         console.error('Erreur lors de la récupération des articles:', error);
